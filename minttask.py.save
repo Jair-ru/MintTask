@@ -19,8 +19,6 @@ from PyQt5.QtWidgets import (
     QTableWidgetItem,
     QMessageBox,
     QHeaderView,
-    QTabWidget,
-    QProgressBar,
 )
 
 from PyQt5.QtCore import Qt, QTimer
@@ -51,7 +49,7 @@ class MintTask(QWidget):
 
     def init_ui(self):
         self.setWindowTitle("MintTask - Advanced Task Manager")
-        self.resize(1400, 900)
+        self.resize(1200, 820)
 
         self.setStyleSheet("""
             QWidget {
@@ -91,57 +89,18 @@ class MintTask(QWidget):
                 padding: 6px;
                 border-radius: 6px;
             }
-
-            QTabWidget::pane {
-                border: 1px solid #3c4043;
-                background: #202124;
-            }
-
-            QTabBar::tab {
-                background: #303134;
-                padding: 10px;
-                margin-right: 2px;
-                border-top-left-radius: 6px;
-                border-top-right-radius: 6px;
-            }
-
-            QTabBar::tab:selected {
-                background: #8ab4f8;
-                color: black;
-            }
-
-            QProgressBar {
-                border: 1px solid #555;
-                border-radius: 5px;
-                text-align: center;
-                height: 24px;
-                font-weight: bold;
-            }
-
-            QProgressBar::chunk {
-                background-color: #8ab4f8;
-            }
         """)
 
-        main_layout = QVBoxLayout()
+        layout = QVBoxLayout()
 
         # TÍTULO
         title = QLabel("MintTask")
-        title.setFont(QFont("Arial", 24, QFont.Bold))
+        title.setFont(QFont("Arial", 22, QFont.Bold))
         title.setAlignment(Qt.AlignCenter)
 
-        main_layout.addWidget(title)
+        layout.addWidget(title)
 
-        # ABAS
-        self.tabs = QTabWidget()
-
-        # ==================================================
-        # ABA PROCESSOS
-        # ==================================================
-
-        process_tab = QWidget()
-        process_layout = QVBoxLayout()
-
+        # TOPO
         topbar = QHBoxLayout()
 
         self.search = QLineEdit()
@@ -166,33 +125,40 @@ class MintTask(QWidget):
         topbar.addWidget(refresh_btn)
         topbar.addWidget(kill_btn)
 
-        process_layout.addLayout(topbar)
+        layout.addLayout(topbar)
 
-        # GRÁFICOS CPU/RAM
+        # GRÁFICOS
         graphs_layout = QHBoxLayout()
 
+        # CPU
         self.cpu_graph = pg.PlotWidget()
         self.cpu_graph.setBackground("#2b2d31")
         self.cpu_graph.setTitle("CPU Usage")
         self.cpu_graph.showGrid(x=True, y=True)
 
-        self.cpu_curve = self.cpu_graph.plot(
-            pen=pg.mkPen(color='#00ff88', width=2)
-        )
+        self.cpu_curve = self.cpu_graph.plot(pen='g')
 
+        # RAM
         self.ram_graph = pg.PlotWidget()
         self.ram_graph.setBackground("#2b2d31")
         self.ram_graph.setTitle("RAM Usage")
         self.ram_graph.showGrid(x=True, y=True)
 
-        self.ram_curve = self.ram_graph.plot(
-            pen=pg.mkPen(color='#00ccff', width=2)
-        )
+        self.ram_curve = self.ram_graph.plot(pen='c')
+
+        # DISK
+        self.disk_graph = pg.PlotWidget()
+        self.disk_graph.setBackground("#2b2d31")
+        self.disk_graph.setTitle("Disk Usage")
+        self.disk_graph.showGrid(x=True, y=True)
+
+        self.disk_curve = self.disk_graph.plot(pen='y')
 
         graphs_layout.addWidget(self.cpu_graph)
         graphs_layout.addWidget(self.ram_graph)
+        graphs_layout.addWidget(self.disk_graph)
 
-        process_layout.addLayout(graphs_layout)
+        layout.addLayout(graphs_layout)
 
         # TABELA
         self.table = QTableWidget()
@@ -214,66 +180,13 @@ class MintTask(QWidget):
         self.table.setSelectionBehavior(self.table.SelectRows)
         self.table.setEditTriggers(self.table.NoEditTriggers)
 
-        process_layout.addWidget(self.table)
-
-        process_tab.setLayout(process_layout)
-
-        # ==================================================
-        # ABA DISCO
-        # ==================================================
-
-        disk_tab = QWidget()
-        disk_layout = QVBoxLayout()
-
-        disk_title = QLabel("Disk Monitor")
-        disk_title.setFont(QFont("Arial", 20, QFont.Bold))
-
-        disk_layout.addWidget(disk_title)
-
-        self.disk_bar = QProgressBar()
-        self.disk_bar.setValue(0)
-
-        disk_layout.addWidget(self.disk_bar)
-
-        self.disk_info = QLabel("Carregando informações do disco...")
-        self.disk_info.setFont(QFont("Arial", 12))
-
-        disk_layout.addWidget(self.disk_info)
-
-        # GRÁFICO DISCO
-        self.disk_graph = pg.PlotWidget()
-        self.disk_graph.setBackground("#2b2d31")
-        self.disk_graph.setTitle("Disk Usage History")
-        self.disk_graph.showGrid(x=True, y=True)
-
-        self.disk_curve = self.disk_graph.plot(
-            pen=pg.mkPen(color='#ffee00', width=2)
-        )
-
-        disk_layout.addWidget(self.disk_graph)
-
-        # INFORMAÇÕES DETALHADAS
-        self.disk_details = QLabel()
-        self.disk_details.setFont(QFont("Consolas", 11))
-
-        disk_layout.addWidget(self.disk_details)
-
-        disk_tab.setLayout(disk_layout)
-
-        # ==================================================
-        # ADICIONAR ABAS
-        # ==================================================
-
-        self.tabs.addTab(process_tab, "Processos")
-        self.tabs.addTab(disk_tab, "Disco")
-
-        main_layout.addWidget(self.tabs)
+        layout.addWidget(self.table)
 
         # STATUS
         self.status = QLabel("Pronto")
-        main_layout.addWidget(self.status)
+        layout.addWidget(self.status)
 
-        self.setLayout(main_layout)
+        self.setLayout(layout)
 
     def get_processes(self):
         processes = []
@@ -352,11 +265,9 @@ class MintTask(QWidget):
                 QTableWidgetItem(proc['name'])
             )
 
-        # CPU / RAM
+        # CPU / RAM / DISK
         cpu = psutil.cpu_percent()
         ram = psutil.virtual_memory().percent
-
-        # DISCO
         disk = get_disk_usage()
 
         # HISTÓRICO
@@ -364,30 +275,10 @@ class MintTask(QWidget):
         self.ram_history.append(ram)
         self.disk_history.append(disk['percent'])
 
-        # GRÁFICOS
+        # ATUALIZA GRÁFICOS
         self.cpu_curve.setData(list(self.cpu_history))
         self.ram_curve.setData(list(self.ram_history))
         self.disk_curve.setData(list(self.disk_history))
-
-        # DISK UI
-        self.disk_bar.setValue(int(disk['percent']))
-
-        total_gb = round(disk['total'] / (1024**3), 1)
-        used_gb = round(disk['used'] / (1024**3), 1)
-        free_gb = round(disk['free'] / (1024**3), 1)
-
-        self.disk_info.setText(
-            f"Uso do Disco: {disk['percent']}%"
-        )
-
-        self.disk_details.setText(
-            f"""
-Total:   {total_gb} GB
-Usado:   {used_gb} GB
-Livre:   {free_gb} GB
-Partição: /
-"""
-        )
 
         # STATUS
         self.status.setText(
@@ -444,14 +335,5 @@ Partição: /
                     str(e)
                 )
 
-def main():
-    app = QApplication(sys.argv)
 
-    window = MintTask()
-    window.show()
-
-    sys.exit(app.exec_())
-
-
-if __name__ == "__main__":
-    main()
+def m
