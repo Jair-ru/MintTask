@@ -18,4 +18,4 @@ Download the latest AppImage in Releases.
 
 ## Screenshots
 
-Coming soon.
+<img width="1173" height="738" alt="ksnip_20260516-233417" src="https://github.com/user-attachments/assets/53de4616-0230-4bb0-80b8-7d2d4dc33f50" />
