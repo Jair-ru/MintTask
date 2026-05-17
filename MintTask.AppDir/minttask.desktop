@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=MintTask
+Exec=minttask
+Icon=icon
+Categories=System;
+Terminal=false

@@ -1,0 +1,326 @@
+#!/usr/bin/env python3
+
+import sys
+import os
+import signal
+import psutil
+
+from collections import deque
+
+from PyQt5.QtWidgets import (
+    QApplication,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QPushButton,
+    QLabel,
+    QLineEdit,
+    QTableWidget,
+    QTableWidgetItem,
+    QMessageBox,
+    QHeaderView,
+)
+
+from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtGui import QFont
+
+import pyqtgraph as pg
+
+
+class MintTask(QWidget):
+    def __init__(self):
+        super().__init__()
+
+        self.sort_mode = "cpu"
+
+        self.cpu_history = deque(maxlen=60)
+        self.ram_history = deque(maxlen=60)
+
+        self.init_ui()
+
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update_processes)
+        self.timer.start(1000)
+
+        self.update_processes()
+
+    def init_ui(self):
+        self.setWindowTitle("MintTask - Advanced Task Manager")
+        self.resize(1200, 720)
+
+        self.setStyleSheet("""
+            QWidget {
+                background-color: #202124;
+                color: #e8eaed;
+                font-size: 13px;
+            }
+
+            QTableWidget {
+                background-color: #2b2d31;
+                gridline-color: #3c4043;
+                border: 1px solid #3c4043;
+            }
+
+            QHeaderView::section {
+                background-color: #303134;
+                color: #8ab4f8;
+                padding: 6px;
+                border: 1px solid #3c4043;
+                font-weight: bold;
+            }
+
+            QPushButton {
+                background-color: #3c4043;
+                border: none;
+                padding: 8px;
+                border-radius: 6px;
+            }
+
+            QPushButton:hover {
+                background-color: #4a4d52;
+            }
+
+            QLineEdit {
+                background-color: #303134;
+                border: 1px solid #5f6368;
+                padding: 6px;
+                border-radius: 6px;
+            }
+        """)
+
+        layout = QVBoxLayout()
+
+        title = QLabel("MintTask")
+        title.setFont(QFont("Arial", 22, QFont.Bold))
+        title.setAlignment(Qt.AlignCenter)
+
+        layout.addWidget(title)
+
+        # TOPO
+        topbar = QHBoxLayout()
+
+        self.search = QLineEdit()
+        self.search.setPlaceholderText("Buscar processo...")
+        self.search.textChanged.connect(self.update_processes)
+
+        cpu_btn = QPushButton("Ordenar CPU")
+        cpu_btn.clicked.connect(self.sort_cpu)
+
+        ram_btn = QPushButton("Ordenar RAM")
+        ram_btn.clicked.connect(self.sort_ram)
+
+        refresh_btn = QPushButton("Atualizar")
+        refresh_btn.clicked.connect(self.update_processes)
+
+        kill_btn = QPushButton("Encerrar Processo")
+        kill_btn.clicked.connect(self.kill_selected)
+
+        topbar.addWidget(self.search)
+        topbar.addWidget(cpu_btn)
+        topbar.addWidget(ram_btn)
+        topbar.addWidget(refresh_btn)
+        topbar.addWidget(kill_btn)
+
+        layout.addLayout(topbar)
+
+        # GRÁFICOS
+        graphs_layout = QHBoxLayout()
+
+        self.cpu_graph = pg.PlotWidget()
+        self.cpu_graph.setBackground("#2b2d31")
+        self.cpu_graph.setTitle("CPU Usage")
+        self.cpu_graph.showGrid(x=True, y=True)
+
+        self.cpu_curve = self.cpu_graph.plot(pen='g')
+
+        self.ram_graph = pg.PlotWidget()
+        self.ram_graph.setBackground("#2b2d31")
+        self.ram_graph.setTitle("RAM Usage")
+        self.ram_graph.showGrid(x=True, y=True)
+
+        self.ram_curve = self.ram_graph.plot(pen='c')
+
+        graphs_layout.addWidget(self.cpu_graph)
+        graphs_layout.addWidget(self.ram_graph)
+
+        layout.addLayout(graphs_layout)
+
+        # TABELA
+        self.table = QTableWidget()
+
+        self.table.setColumnCount(5)
+
+        self.table.setHorizontalHeaderLabels([
+            "PID",
+            "Usuário",
+            "CPU %",
+            "RAM %",
+            "Processo"
+        ])
+
+        self.table.horizontalHeader().setSectionResizeMode(
+            QHeaderView.Stretch
+        )
+
+        self.table.setSelectionBehavior(self.table.SelectRows)
+        self.table.setEditTriggers(self.table.NoEditTriggers)
+
+        layout.addWidget(self.table)
+
+        # STATUS
+        self.status = QLabel("Pronto")
+        layout.addWidget(self.status)
+
+        self.setLayout(layout)
+
+    def get_processes(self):
+        processes = []
+
+        search_text = self.search.text().lower()
+
+        for proc in psutil.process_iter([
+            'pid',
+            'name',
+            'username',
+            'cpu_percent',
+            'memory_percent'
+        ]):
+            try:
+                info = proc.info
+
+                name = info['name'] or "Unknown"
+
+                if search_text:
+                    if search_text not in name.lower():
+                        continue
+
+                processes.append({
+                    'pid': info['pid'],
+                    'user': info['username'] or "Unknown",
+                    'cpu': info['cpu_percent'],
+                    'mem': round(info['memory_percent'], 1),
+                    'name': name
+                })
+
+            except:
+                pass
+
+        if self.sort_mode == "cpu":
+            processes.sort(
+                key=lambda x: x['cpu'],
+                reverse=True
+            )
+        else:
+            processes.sort(
+                key=lambda x: x['mem'],
+                reverse=True
+            )
+
+        return processes
+
+    def update_processes(self):
+        processes = self.get_processes()
+
+        self.table.setRowCount(len(processes))
+
+        for row, proc in enumerate(processes):
+
+            self.table.setItem(
+                row, 0,
+                QTableWidgetItem(str(proc['pid']))
+            )
+
+            self.table.setItem(
+                row, 1,
+                QTableWidgetItem(proc['user'])
+            )
+
+            self.table.setItem(
+                row, 2,
+                QTableWidgetItem(str(proc['cpu']))
+            )
+
+            self.table.setItem(
+                row, 3,
+                QTableWidgetItem(str(proc['mem']))
+            )
+
+            self.table.setItem(
+                row, 4,
+                QTableWidgetItem(proc['name'])
+            )
+
+        # CPU / RAM
+        cpu = psutil.cpu_percent()
+        ram = psutil.virtual_memory().percent
+
+        self.cpu_history.append(cpu)
+        self.ram_history.append(ram)
+
+        self.cpu_curve.setData(list(self.cpu_history))
+        self.ram_curve.setData(list(self.ram_history))
+
+        self.status.setText(
+            f"CPU: {cpu}% | RAM: {ram}% | "
+            f"{len(processes)} processos carregados | "
+            f"Ordenando por {self.sort_mode.upper()}"
+        )
+
+    def sort_cpu(self):
+        self.sort_mode = "cpu"
+        self.update_processes()
+
+    def sort_ram(self):
+        self.sort_mode = "mem"
+        self.update_processes()
+
+    def kill_selected(self):
+        row = self.table.currentRow()
+
+        if row < 0:
+            QMessageBox.warning(
+                self,
+                "Aviso",
+                "Selecione um processo"
+            )
+            return
+
+        pid = int(self.table.item(row, 0).text())
+        proc_name = self.table.item(row, 4).text()
+
+        confirm = QMessageBox.question(
+            self,
+            "Confirmar",
+            f"Encerrar processo?\n\n"
+            f"{proc_name} (PID {pid})"
+        )
+
+        if confirm == QMessageBox.Yes:
+            try:
+                os.kill(pid, signal.SIGTERM)
+
+                self.status.setText(
+                    f"Processo {pid} encerrado"
+                )
+
+                self.update_processes()
+
+            except Exception as e:
+                QMessageBox.critical(
+                    self,
+                    "Erro",
+                    str(e)
+                )
+
+
+def main():
+    app = QApplication(sys.argv)
+
+    window = MintTask()
+    window.show()
+
+    sys.exit(app.exec_())
+
+
+if __name__ == "__main__":
+    main()

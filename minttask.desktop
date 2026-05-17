@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=MintTask
+Comment=Advanced Linux Task Manager
+Exec=/opt/minttask/minttask
+Icon=/opt/minttask/icon.png
+Terminal=false
+Categories=System;Monitor;
